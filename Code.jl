@@ -30,7 +30,7 @@ function MILP(filenm, timeout)
     model = Model(CPLEX.Optimizer)
 
     # 参数定义
-    H = 1000 # 一个大数
+    H = sum(p) # 一个大数
 
     # 变量
     @variable(model, X[1:J, 1:L+T] , Bin)  # 工件在哪个生产线或者模台上加工
@@ -357,7 +357,7 @@ function MILP_OASS1(filenm, timeLimit)
     model = Model(CPLEX.Optimizer)
 
     # 参数定义
-    H = 1000 # 一个大数
+    H = sum(p) # 一个大数
 
     # 变量
     @variable(model, X[1:J, 1:L] , Bin)  # 工件在哪个生产线或者模台上加工
@@ -619,7 +619,7 @@ function MILP_OASS2(filenm, timeLimit)
     model = Model(CPLEX.Optimizer)
 
     # 参数定义
-    H = 10000 # 一个大数
+    H = sum(p) # 一个大数
 
     # 变量
     @variable(model, X[1:J, 1:T] , Bin)  # 工件在哪个生产线或者模台上加工
@@ -672,7 +672,7 @@ function MILP_POS_OASS2(filenm, timeLimit)
     model = Model(CPLEX.Optimizer)
 
     # 参数定义
-    H = 10000 # 一个大数
+    H = sum(p) # 一个大数
 
     # 变量
     @variable(model, X[1:J, 1:T] , Bin)  # 工件在哪个生产线或者模台上加工
@@ -962,7 +962,7 @@ function Logic_based_Benders_Unit(filenm, TIME_LIMIT)
     model = Model(CPLEX.Optimizer)
 
     # 参数定义
-    H = 10000 # 一个大数
+    H = sum(p) # 一个大数
 
     # 变量
     @variable(model, X[1:J, 1:F], Bin)  # 工件在哪个生产线或者模台上加工
@@ -1071,7 +1071,7 @@ function Logic_based_Benders_enhanceMP_Unit(filenm, TIME_LIMIT)
     model = Model(CPLEX.Optimizer)
 
     # 参数定义
-    H = 10000 # 一个大数
+    H = sum(p) # 一个大数
 
     # 变量
     @variable(model, X[1:J, 1:F], Bin)  # 工件在哪个生产线或者模台上加工
@@ -1180,7 +1180,7 @@ end
 
 # ---------------------------------- Data Generation --------------------------------------
 
-function Data_Generation(JOB, MACHINE, LINE_NUM, TABLE_NUM, index)
+function Data_Generation(JOB, MACHINE, LINE_NUM, TABLE_NUM, PROCESSING_TIME_4, index)
 
     p = rand(10:30, JOB, MACHINE)    # processing time
 
@@ -1199,7 +1199,7 @@ function Data_Generation(JOB, MACHINE, LINE_NUM, TABLE_NUM, index)
 
     println("SPECIAL_JOB = $SPECIAL_JOB")
     for j in 1:JOB
-        p[j, 4] = 80
+        p[j, 4] = PROCESSING_TIME_4
     end
     p6 = rand(5:10, JOB)
     for j in 1:JOB
