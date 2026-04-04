@@ -135,7 +135,7 @@ function CP(filenm, timeout)
             for l in range(L):
                 mdl.add(mdl.no_overlap(tasks[j][m][l] for j in range(J)))
 
-        # Production line上第三阶段Shared resource constraints
+        # Production line Shared resource constraints
         mdl.add(mdl.no_overlap(tasks[j][2][l] for j in range(J) for l in range(L)))
         
         # Constraint of jobs processed on fixed mold tables
