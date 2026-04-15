@@ -30,10 +30,11 @@ function MILP(filenm, timeout)
     model = Model(CPLEX.Optimizer)
 
     # Parameter definition
-    H = sum(p) # A large number
+    Ω = sum(p) # A large number
 
     # Variables
-    @variable(model, X[1:J, 1:L+W], Bin)  # Which production line or mold table the job is processed on
+    @variable(model, X[1:J, 1:L], Bin)  # Which production line or mold table the job is processed on
+    @variable(model, Z[1:J, 1:W], Bin)
     @variable(model, Y[1:J, 1:J], Bin)  # Order between two jobs
 
     @variable(model, C[1:J, 1:M] >= 0) # Completion time of job n at operation s
@@ -43,8 +44,8 @@ function MILP(filenm, timeout)
     @objective(model, Min, Cmax)
 
     # Constraints
-    @constraint(model, [i in 1:J], sum(X[i, l] for l in 1:L+W) == 1)
-    @constraint(model, [i in 1:J], sum(X[i, l] for l in L+1:L+W) - E[i] >= 0)
+    @constraint(model, [i in 1:J], sum(X[i, l] for l in 1:L) + sum(Z[i, l] for l in 1:W) == 1)
+    @constraint(model, [i in 1:J], sum(Z[i, l] for l in 1:W) - E[i] >= 0)
     @constraint(model, [i in 1:J, j in 1:J], Y[i, j] + Y[j, i] <= 1)
 
     ## Basic relationship between completion time and processing start time 
@@ -53,18 +54,18 @@ function MILP(filenm, timeout)
 
     ## Assembly line
     M_no_3_4 = [1, 2, 5, 6]
-    @constraint(model, [i in 1:J-1, j in i+1:J, l in 1:L, m in M_no_3_4], C[i, m] >= C[j, m] + p[i, m] - (3 - Y[i, j] - X[i, l] - X[j, l]) * H)
-    @constraint(model, [i in 1:J-1, j in i+1:J, l in 1:L, m in M_no_3_4], C[j, m] >= C[i, m] + p[i, m] - (2 + Y[i, j] - X[i, l] - X[j, l]) * H)
+    @constraint(model, [i in 1:J-1, j in i+1:J, l in 1:L, m in M_no_3_4], C[i, m] >= C[j, m] + p[i, m] - (3 - Y[i, j] - X[i, l] - X[j, l]) * Ω)
+    @constraint(model, [i in 1:J-1, j in i+1:J, l in 1:L, m in M_no_3_4], C[j, m] >= C[i, m] + p[i, m] - (2 + Y[i, j] - X[i, l] - X[j, l]) * Ω)
     ## Shared resource constraint for the third operation SingleServer
-    @constraint(model, [i in 1:J-1, j in i+1:J, l1 in 1:L, l2 in 1:L], C[i, 3] >= C[j, 3] + p[i, 3] - (3 - Y[i, j] - X[i, l1] - X[j, l2]) * H)
-    @constraint(model, [i in 1:J-1, j in i+1:J, l1 in 1:L, l2 in 1:L], C[j, 3] >= C[i, 3] + p[j, 3] - (2 + Y[i, j] - X[i, l1] - X[j, l2]) * H)
+    @constraint(model, [i in 1:J-1, j in i+1:J, l1 in 1:L, l2 in 1:L], C[i, 3] >= C[j, 3] + p[i, 3] - (3 - Y[i, j] - X[i, l1] - X[j, l2]) * Ω)
+    @constraint(model, [i in 1:J-1, j in i+1:J, l1 in 1:L, l2 in 1:L], C[j, 3] >= C[i, 3] + p[j, 3] - (2 + Y[i, j] - X[i, l1] - X[j, l2]) * Ω)
 
     ## Constraints on fixed mold tables
-    @constraint(model, [i in 1:J-1, j in i+1:J, w in L+1:L+W], C[i, 1] >= C[j, 6] + p[i, 1] - (3 - Y[i, j] - X[i, w] - X[j, w]) * H)
-    @constraint(model, [i in 1:J-1, j in i+1:J, w in L+1:L+W], C[j, 1] >= C[i, 6] + p[j, 1] - (2 + Y[i, j] - X[i, w] - X[j, w]) * H)
+    @constraint(model, [i in 1:J-1, j in i+1:J, w in 1:W], C[i, 1] >= C[j, 6] + p[i, 1] - (3 - Y[i, j] - Z[i, w] - Z[j, w]) * Ω)
+    @constraint(model, [i in 1:J-1, j in i+1:J, w in 1:W], C[j, 1] >= C[i, 6] + p[j, 1] - (2 + Y[i, j] - Z[i, w] - Z[j, w]) * Ω)
     ## Shared resource constraint for the third operation SingleServer
-    @constraint(model, [i in 1:J-1, j in i+1:J, t1 in L+1:L+W, t2 in L+1:L+W], C[i, 3] >= C[j, 3] + p[i, 3] - (3 - Y[i, j] - X[i, t1] - X[j, t2]) * H) # 
-    @constraint(model, [i in 1:J-1, j in i+1:J, t1 in L+1:L+W, t2 in L+1:L+W], C[j, 3] >= C[i, 3] + p[j, 3] - (2 + Y[i, j] - X[i, t1] - X[j, t2]) * H) # 
+    @constraint(model, [i in 1:J-1, j in i+1:J, w1 in 1:W, w2 in L+1:L+W], C[i, 3] >= C[j, 3] + p[i, 3] - (3 - Y[i, j] - Z[i, w1] - Z[j, w2]) * Ω) # 
+    @constraint(model, [i in 1:J-1, j in i+1:J, w1 in 1:W, w2 in L+1:L+W], C[j, 3] >= C[i, 3] + p[j, 3] - (2 + Y[i, j] - Z[i, w1] - Z[j, w2]) * Ω) # 
 
     ## Completion time constraint
     @constraint(model, [i in 1:J], Cmax >= C[i, M])
@@ -337,7 +338,7 @@ function MILP_OASS1(filenm, timeLimit)
     model = Model(CPLEX.Optimizer)
 
     # Parameter definition
-    H = sum(p) # A large number
+    Ω = sum(p) # A large number
 
     # Variables
     @variable(model, X[1:J, 1:L], Bin)  # Which production line or mold table the job is processed on
@@ -359,11 +360,11 @@ function MILP_OASS1(filenm, timeLimit)
 
     ## Assembly line
     M_no_3_4 = [1, 2, 5, 6]
-    @constraint(model, [i in 1:J-1, j in i+1:J, l in 1:L, m in M_no_3_4], C[i, m] >= C[j, m] + p[i, m] - (3 - Y[i, j] - X[i, l] - X[j, l]) * H)
-    @constraint(model, [i in 1:J-1, j in i+1:J, l in 1:L, m in M_no_3_4], C[j, m] >= C[i, m] + p[i, m] - (2 + Y[i, j] - X[i, l] - X[j, l]) * H)
+    @constraint(model, [i in 1:J-1, j in i+1:J, l in 1:L, m in M_no_3_4], C[i, m] >= C[j, m] + p[i, m] - (3 - Y[i, j] - X[i, l] - X[j, l]) * Ω)
+    @constraint(model, [i in 1:J-1, j in i+1:J, l in 1:L, m in M_no_3_4], C[j, m] >= C[i, m] + p[i, m] - (2 + Y[i, j] - X[i, l] - X[j, l]) * Ω)
     ## Shared resource constraint for the third operation SingleServer
-    @constraint(model, [i in 1:J-1, j in i+1:J, l1 in 1:L, l2 in 1:L], C[i, 3] >= C[j, 3] + p[i, 3] - (3 - Y[i, j] - X[i, l1] - X[j, l2]) * H)
-    @constraint(model, [i in 1:J-1, j in i+1:J, l1 in 1:L, l2 in 1:L], C[j, 3] >= C[i, 3] + p[j, 3] - (2 + Y[i, j] - X[i, l1] - X[j, l2]) * H)
+    @constraint(model, [i in 1:J-1, j in i+1:J, l1 in 1:L, l2 in 1:L], C[i, 3] >= C[j, 3] + p[i, 3] - (3 - Y[i, j] - X[i, l1] - X[j, l2]) * Ω)
+    @constraint(model, [i in 1:J-1, j in i+1:J, l1 in 1:L, l2 in 1:L], C[j, 3] >= C[i, 3] + p[j, 3] - (2 + Y[i, j] - X[i, l1] - X[j, l2]) * Ω)
 
 
     ## Completion time constraint
@@ -599,7 +600,7 @@ function MILP_OASS2(filenm, timeLimit)
     model = Model(CPLEX.Optimizer)
 
     # Parameter definition
-    H = sum(p) # A large number
+    Ω = sum(p) # A large number
 
     # Variables
     @variable(model, X[1:J, 1:W], Bin)  # Which production line or mold table the job is processed on
@@ -620,11 +621,11 @@ function MILP_OASS2(filenm, timeLimit)
     @constraint(model, [i in 1:J], C[i, 1] >= p[i, 1])
 
     ## Constraints on fixed mold tables
-    @constraint(model, [i in 1:J-1, j in i+1:J, w in 1:W], C[i, 1] >= C[j, 6] + p[i, 1] - (3 - Y[i, j] - X[i, w] - X[j, w]) * H)
-    @constraint(model, [i in 1:J-1, j in i+1:J, w in 1:W], C[j, 1] >= C[i, 6] + p[j, 1] - (2 + Y[i, j] - X[i, w] - X[j, w]) * H)
+    @constraint(model, [i in 1:J-1, j in i+1:J, w in 1:W], C[i, 1] >= C[j, 6] + p[i, 1] - (3 - Y[i, j] - X[i, w] - X[j, w]) * Ω)
+    @constraint(model, [i in 1:J-1, j in i+1:J, w in 1:W], C[j, 1] >= C[i, 6] + p[j, 1] - (2 + Y[i, j] - X[i, w] - X[j, w]) * Ω)
     ## Shared resource constraint for the third operation SingleServer
-    @constraint(model, [i in 1:J-1, j in i+1:J], C[i, 3] >= C[j, 3] + p[i, 3] - (1 - Y[i, j]) * H) # 
-    @constraint(model, [i in 1:J-1, j in i+1:J], C[j, 3] >= C[i, 3] + p[j, 3] - Y[i, j] * H) # 
+    @constraint(model, [i in 1:J-1, j in i+1:J], C[i, 3] >= C[j, 3] + p[i, 3] - (1 - Y[i, j]) * Ω) # 
+    @constraint(model, [i in 1:J-1, j in i+1:J], C[j, 3] >= C[i, 3] + p[j, 3] - Y[i, j] * Ω) # 
 
     ## Completion time constraint
     @constraint(model, [i in 1:J], Cmax >= C[i, M])
@@ -652,7 +653,7 @@ function MILP_POS_OASS2(filenm, timeLimit)
     model = Model(CPLEX.Optimizer)
 
     # Parameter definition
-    H = sum(p) # A large number
+    Ω = sum(p) # A large number
 
     # Variables
     @variable(model, X[1:J, 1:W], Bin)  # Which production line or mold table the job is processed on
@@ -674,8 +675,8 @@ function MILP_POS_OASS2(filenm, timeLimit)
     @constraint(model, [k in 1:J], C[k, 1] >= sum(p[i, 1] * Y[i, k] for i in 1:J))
 
     ## Constraints on fixed mold tables
-    @constraint(model, [i in 1:J-1, j in i+1:J, k1 in 1:J-1, k2 in k1+1:J, w in 1:W], C[k2, 1] >= C[k1, 6] + p[j, 1] - (4 - Y[i, k1] - Y[j, k2] - X[i, w] - X[j, w]) * H)
-    @constraint(model, [j in 1:J-1, i in j+1:J, k1 in 1:J-1, k2 in k1+1:J, w in 1:W], C[k2, 1] >= C[k1, 6] + p[j, 1] - (4 - Y[i, k1] - Y[j, k2] - X[i, w] - X[j, w]) * H)
+    @constraint(model, [i in 1:J-1, j in i+1:J, k1 in 1:J-1, k2 in k1+1:J, w in 1:W], C[k2, 1] >= C[k1, 6] + p[j, 1] - (4 - Y[i, k1] - Y[j, k2] - X[i, w] - X[j, w]) * Ω)
+    @constraint(model, [j in 1:J-1, i in j+1:J, k1 in 1:J-1, k2 in k1+1:J, w in 1:W], C[k2, 1] >= C[k1, 6] + p[j, 1] - (4 - Y[i, k1] - Y[j, k2] - X[i, w] - X[j, w]) * Ω)
     ## Shared resource constraints
     @constraint(model, [k in 2:J], C[k, 3] >= C[k-1, 3] + sum(p[i, 3] * Y[i, k] for i in 1:J))
 
@@ -916,6 +917,110 @@ function LBBD(filenm, TIME_LIMIT)
     #-----------------------------------------------------------------------------
     # Initialize Data
     #-----------------------------------------------------------------------------
+    J = load(filenm, "JJ")
+    println("J = $J")
+
+    M = load(filenm, "MM")
+    println("M = $M")
+
+    p = load(filenm, "pp")
+    println("p = $p")
+
+    L = load(filenm, "LL")
+    println("L = $L")
+
+    W = load(filenm, "TT")
+    println("W = $W")
+
+    E = load(filenm, "SS")
+    println("E = $E")
+
+    F = 2
+    # Create model
+    model = Model(CPLEX.Optimizer)
+
+    # Parameter definition
+    Ω = sum(p) # A large number
+
+    # Variables
+    @variable(model, U[1:J, 1:F], Bin)  # Which production line or mold table the job is processed on
+
+    @variable(model, B[1:J, 1:M] >= 0) # Start time of job n at operation s
+    @variable(model, C[1:J, 1:M] >= 0) # Completion time of job n at operation s
+    @variable(model, Cmax >= 0)    # Completion time
+
+    # Objective function
+    @objective(model, Min, Cmax)
+
+    # Constraints
+    @constraint(model, [i in 1:J], sum(U[i, f] for f in 1:F) == 1)
+    @constraint(model, [f in 1:F], sum(U[i, f] for i in 1:J) >= 1)
+    @constraint(model, [i in 1:J], U[i, 2] - E[i] >= 0)
+
+
+
+    ## Basic relationship between completion time and processing start time 
+    @constraint(model, [i in 1:J, m in 2:M], C[i, m] >= C[i, m-1] + p[i, m])
+    @constraint(model, [i in 1:J], C[i, 1] >= p[i, 1])
+
+
+    @constraint(model, [i in 1:J], Cmax >= C[i, 6])
+
+
+    cuts = []
+    precision = 1e-6
+    best_value = Inf
+    timeMasterProblem = 0
+    timeSubProblem = 0
+    timeSubLine = 0
+    timeSubTable = 0
+    iterate = 0
+    while true
+        iterate = iterate + 1
+        # Step 1: Solve the master problem
+        JuMP.set_time_limit_sec(model, 60)
+        JuMP.optimize!(model)
+        timeMasterProblem = JuMP.solve_time(model) + timeMasterProblem
+        U1 = JuMP.value.(U)
+        lower_bound = JuMP.objective_bound(model)
+
+        # Step 2: Solve the subproblem
+        upper_bound, subSolTime, subLineSolTime, subTableSolTime, subObjBound = subproblem_solve_Unit(filenm, 30, U1)
+        timeSubProblem = subSolTime + timeSubProblem
+        timeSubLine = subLineSolTime + timeSubLine
+        timeSubTable = subTableSolTime + timeSubTable
+        # Step 3: Check the optimality and break the loop
+        if upper_bound < best_value
+            best_value = upper_bound
+        end
+
+        if best_value - lower_bound <= precision
+            println("Optimal solution found")
+            println("Objective value: ", best_value)
+            println("Iteration: ", iterate)
+            return best_value, lower_bound, (best_value - lower_bound) / best_value, iterate, timeMasterProblem, timeSubProblem, timeSubLine, timeSubTable
+            break
+        end
+
+        # Step 4: Add the Benders cut
+        cut = @constraint(model, Cmax >= subObjBound * (1 - sum(U[i, f] * (1 - U1[i, f]) for i in 1:J for f in 1:F)))
+        push!(cuts, cut)
+
+        if timeMasterProblem + timeSubProblem >= TIME_LIMIT
+            println("Time limit reached")
+            println("Iteration: ", iterate)
+            println("lower bound: ", lower_bound)
+            println("upper bound: ", best_value)
+            gap = (best_value - lower_bound) / best_value
+            println("Gap: ", gap)
+            return best_value, lower_bound, (best_value - lower_bound) / best_value, iterate, timeMasterProblem, timeSubProblem, timeSubLine, timeSubTable
+            break
+        end
+    end
+end
+
+
+function LBBD_GBWR(filenm, TIME_LIMIT)
     #-----------------------------------------------------------------------------
     # Initialize Data
     #-----------------------------------------------------------------------------
@@ -942,10 +1047,10 @@ function LBBD(filenm, TIME_LIMIT)
     model = Model(CPLEX.Optimizer)
 
     # Parameter definition
-    H = sum(p) # A large number
+    Ω = sum(p) # A large number
 
     # Variables
-    @variable(model, X[1:J, 1:F], Bin)  # Which production line or mold table the job is processed on
+    @variable(model, U[1:J, 1:F], Bin)  # Which production line or mold table the job is processed on
 
     @variable(model, B[1:J, 1:M] >= 0) # Start time of job n at operation s
     @variable(model, C[1:J, 1:M] >= 0) # Completion time of job n at operation s
@@ -955,15 +1060,32 @@ function LBBD(filenm, TIME_LIMIT)
     @objective(model, Min, Cmax)
 
     # Constraints
-    @constraint(model, [i in 1:J], sum(X[i, f] for f in 1:F) == 1)
-    @constraint(model, [f in 1:F], sum(X[i, f] for i in 1:J) >= 1)
-    @constraint(model, [i in 1:J], X[i, 2] - E[i] >= 0)
+    @constraint(model, [i in 1:J], sum(U[i, f] for f in 1:F) == 1)
+    @constraint(model, [f in 1:F], sum(U[i, f] for i in 1:J) >= 1)
+    @constraint(model, [i in 1:J], U[i, 2] - E[i] >= 0)
 
 
 
     ## Basic relationship between completion time and processing start time 
     @constraint(model, [i in 1:J, m in 2:M], C[i, m] >= C[i, m-1] + p[i, m])
     @constraint(model, [i in 1:J], C[i, 1] >= p[i, 1])
+
+
+    @variable(model, O1 >= 0)
+    @variable(model, O2 >= 0)
+    @variable(model, a[1:J], Bin)
+    @variable(model, b[1:J], Bin)
+
+    @constraint(model, sum(a[i] for i in 1:J) >= 1)
+    @constraint(model, [i in 1:J], O1 <= sum(p[i, m] for m in M_1_2))
+    @constraint(model, [i in 1:J], O1 >= sum(p[i, m] for m in M_1_2) - H * (1 - a[i]))
+
+    @constraint(model, sum(b[i] for i in 1:J) >= 1)
+    @constraint(model, [i in 1:J], R2 <= sum(p[i, m] for m in M_4_5_6))
+    @constraint(model, [i in 1:J], R2 >= sum(p[i, m] for m in M_4_5_6) - H * (1 - b[i]))
+
+    @constraint(model, Cmax >= sum(p[i, 3] for i in 1:J) / F + O1 + O2)
+
 
 
     @constraint(model, [i in 1:J], Cmax >= C[i, 6])
@@ -983,11 +1105,11 @@ function LBBD(filenm, TIME_LIMIT)
         JuMP.set_time_limit_sec(model, 60)
         JuMP.optimize!(model)
         timeMasterProblem = JuMP.solve_time(model) + timeMasterProblem
-        X1 = JuMP.value.(X)
+        U1 = JuMP.value.(U)
         lower_bound = JuMP.objective_bound(model)
 
         # Step 2: Solve the subproblem
-        upper_bound, subSolTime, subLineSolTime, subTableSolTime, subObjBound = subproblem_solve_Unit(filenm, 30, X1)
+        upper_bound, subSolTime, subLineSolTime, subTableSolTime, subObjBound = subproblem_solve_Unit(filenm, 30, U1)
         timeSubProblem = subSolTime + timeSubProblem
         timeSubLine = subLineSolTime + timeSubLine
         timeSubTable = subTableSolTime + timeSubTable
@@ -1005,7 +1127,7 @@ function LBBD(filenm, TIME_LIMIT)
         end
 
         # Step 4: Add the Benders cut
-        cut = @constraint(model, Cmax >= subObjBound * (1 - sum(X[i, f] * (1 - X1[i, f]) for i in 1:J for f in 1:F)))
+        cut = @constraint(model, Cmax >= subObjBound * (1 - sum(U[i, f] * (1 - U1[i, f]) for i in 1:J for f in 1:F)))
         push!(cuts, cut)
 
         if timeMasterProblem + timeSubProblem >= TIME_LIMIT
@@ -1021,10 +1143,7 @@ function LBBD(filenm, TIME_LIMIT)
     end
 end
 
-function LBBD_SSR(filenm, TIME_LIMIT)
-    #-----------------------------------------------------------------------------
-    # Initialize Data
-    #-----------------------------------------------------------------------------
+function LBBD_ADBWR(filenm, TIME_LIMIT)
     #-----------------------------------------------------------------------------
     # Initialize Data
     #-----------------------------------------------------------------------------
@@ -1051,9 +1170,9 @@ function LBBD_SSR(filenm, TIME_LIMIT)
     model = Model(CPLEX.Optimizer)
 
 
-    H = sum(p)
+    Ω = sum(p)
 
-    @variable(model, X[1:J, 1:F], Bin)
+    @variable(model, U[1:J, 1:F], Bin)
 
     @variable(model, B[1:J, 1:M] >= 0)
     @variable(model, C[1:J, 1:M] >= 0)
@@ -1063,9 +1182,9 @@ function LBBD_SSR(filenm, TIME_LIMIT)
     @objective(model, Min, Cmax)
 
 
-    @constraint(model, [i in 1:J], sum(X[i, f] for f in 1:F) == 1)
-    @constraint(model, [f in 1:F], sum(X[i, f] for i in 1:J) >= 1)
-    @constraint(model, [i in 1:J], X[i, 2] - S[i] >= 0)
+    @constraint(model, [i in 1:J], sum(U[i, f] for f in 1:F) == 1)
+    @constraint(model, [f in 1:F], sum(U[i, f] for i in 1:J) >= 1)
+    @constraint(model, [i in 1:J], U[i, 2] - S[i] >= 0)
 
 
     @constraint(model, [i in 1:J, m in 2:M], C[i, m] >= C[i, m-1] + p[i, m])
@@ -1075,33 +1194,28 @@ function LBBD_SSR(filenm, TIME_LIMIT)
     M_4_5_6 = [4, 5, 6]
     M_no_3 = [1, 2, 4, 5, 6]
 
-    @variable(model, R1 >= 0)
-    @variable(model, R2 >= 0)
-    @variable(model, v[1:J], Bin)
-    @variable(model, w[1:J], Bin)
-    @constraint(model, sum(v[i] for i in 1:J) >= 1)
-    @constraint(model, [i in 1:J], v[i] <= X[i, 1])
-    @constraint(model, sum(w[i] for i in 1:J) >= 1)
-    @constraint(model, [i in 1:J], w[i] <= X[i, 1])
-    @constraint(model, [i in 1:J], R1 <= sum(p[i, m] for m in M_1_2) + H * (1 - X[i, 1]))
-    @constraint(model, [i in 1:J], R1 >= sum(p[i, m] for m in M_1_2) - H * (1 - v[i]) - H * (1 - X[i, 1]))
-    @constraint(model, [i in 1:J], R2 <= sum(p[i, m] for m in M_4_5_6) + H * (1 - X[i, 1]))
-    @constraint(model, [i in 1:J], R2 >= sum(p[i, m] for m in M_4_5_6) - H * (1 - w[i]) - H * (1 - X[i, 1]))
-    @constraint(model, Cmax >= sum(p[i, 3] for i in 1:J) / F + R1 + R2)
+    @variable(model, R1[1:F] >= 0)
+    @variable(model, R2[1:F] >= 0)
+    @variable(model, v[1:J, 1:F], Bin)
+    @variable(model, q[1:J, 1:F], Bin)
+    @constraint(model, [f in 1:F], sum(v[i, f] for i in 1:J) >= 1)
+    @constraint(model, [i in 1:J, f in 1:F], v[i, f] <= U[i, f])
+    @constraint(model, [f in 1:F], sum(q[i, f] for i in 1:J) >= 1)
+    @constraint(model, [i in 1:J, f in 1:F], q[i, f] <= U[i, f])
 
-    @variable(model, T1 >= 0)
-    @variable(model, T2 >= 0)
-    @variable(model, vt[1:J], Bin)
-    @variable(model, wt[1:J], Bin)
-    @constraint(model, sum(vt[i] for i in 1:J) >= 1)
-    @constraint(model, [i in 1:J], vt[i] <= X[i, 2])
-    @constraint(model, sum(wt[i] for i in 1:J) >= 1)
-    @constraint(model, [i in 1:J], wt[i] <= X[i, 2])
-    @constraint(model, [i in 1:J], T1 <= sum(p[i, m] for m in M_1_2) + H * (1 - X[i, 2]))
-    @constraint(model, [i in 1:J], T1 >= sum(p[i, m] for m in M_1_2) - H * (1 - vt[i]) - H * (1 - X[i, 2]))
-    @constraint(model, [i in 1:J], T2 <= sum(p[i, m] for m in M_4_5_6) + H * (1 - X[i, 2]))
-    @constraint(model, [i in 1:J], T2 >= sum(p[i, m] for m in M_4_5_6) - H * (1 - wt[i]) - H * (1 - X[i, 2]))
-    @constraint(model, Cmax >= sum(p[i, 3] for i in 1:J) / F + T1 + T2)
+    @constraint(model, [i in 1:J, f in 1:F], R1[f] <= sum(p[i, m] for m in M_1_2) + Ω * (1 - U[i, f]))
+    @constraint(model, [i in 1:J, f in 1:F], R1[f] >= sum(p[i, m] for m in M_1_2) - Ω * (1 - v[i, f]) - Ω * (1 - U[i, f]))
+    @constraint(model, [i in 1:J, f in 1:F], R2[f] <= sum(p[i, m] for m in M_4_5_6) + Ω * (1 - U[i, f]))
+    @constraint(model, [i in 1:J, f in 1:F], R2[f] >= sum(p[i, m] for m in M_4_5_6) - Ω * (1 - q[i, f]) - Ω * (1 - U[i, f]))
+
+    @variable(model, N >= 0)
+    @variable(model, s, Bin)
+    @constraint(model, [f in 1:F], N <= R1[f] + R2[f])
+    @constraint(model, N >= R1[1] + R2[1] - H * s)
+    @constraint(model, N >= R1[2] + R2[2] - H * (1 - s))
+
+    @constraint(model, Cmax >= sum(p[i, 3] for i in 1:J) / F + N)
+
     @constraint(model, [i in 1:J], Cmax >= C[i, 6])
 
     cuts = []
@@ -1118,11 +1232,11 @@ function LBBD_SSR(filenm, TIME_LIMIT)
         JuMP.set_time_limit_sec(model, 60)
         JuMP.optimize!(model)
         timeMasterProblem = JuMP.solve_time(model) + timeMasterProblem
-        X1 = JuMP.value.(X)
+        U1 = JuMP.value.(U)
         lower_bound = JuMP.objective_bound(model)
 
         # Step 2: Solve the subproblem
-        upper_bound, subSolTime, subLineSolTime, subTableSolTime, subObjBound = subproblem_solve_Unit(filenm, 30, X1)
+        upper_bound, subSolTime, subLineSolTime, subTableSolTime, subObjBound = subproblem_solve_Unit(filenm, 30, U1)
         timeSubProblem = subSolTime + timeSubProblem
         timeSubLine = subLineSolTime + timeSubLine
         timeSubTable = subTableSolTime + timeSubTable
@@ -1140,7 +1254,7 @@ function LBBD_SSR(filenm, TIME_LIMIT)
         end
 
         # Step 4: Add the Benders cut
-        cut = @constraint(model, Cmax >= subObjBound * (1 - sum(X[i, f] * (1 - X1[i, f]) for i in 1:J for f in 1:F)))
+        cut = @constraint(model, Cmax >= subObjBound * (1 - sum(U[i, f] * (1 - U1[i, f]) for i in 1:J for f in 1:F)))
         push!(cuts, cut)
 
         if timeMasterProblem + timeSubProblem >= TIME_LIMIT
@@ -1157,10 +1271,7 @@ function LBBD_SSR(filenm, TIME_LIMIT)
 end
 
 
-function LBBD_OASSR(filenm, TIME_LIMIT)
-    #-----------------------------------------------------------------------------
-    # Initialize Data
-    #-----------------------------------------------------------------------------
+function LBBD_LBWR(filenm, TIME_LIMIT)
     #-----------------------------------------------------------------------------
     # Initialize Data
     #-----------------------------------------------------------------------------
@@ -1187,10 +1298,10 @@ function LBBD_OASSR(filenm, TIME_LIMIT)
     model = Model(CPLEX.Optimizer)
 
     # Parameter definition
-    H = sum(p) # A large number
+    Ω = sum(p) # A large number
 
     # Variables
-    @variable(model, X[1:J, 1:F], Bin)  # Which production line or mold table the job is processed on
+    @variable(model, U[1:J, 1:F], Bin)  # Which production line or mold table the job is processed on
 
     @variable(model, B[1:J, 1:M] >= 0) # Start time of job n at operation s
     @variable(model, C[1:J, 1:M] >= 0) # Completion time of job n at operation s
@@ -1200,10 +1311,8 @@ function LBBD_OASSR(filenm, TIME_LIMIT)
     @objective(model, Min, Cmax)
 
 
-    @constraint(model, [i in 1:J], sum(X[i, f] for f in 1:F) == 1)
-    # @constraint(model, [l in 1:L+W], sum(X[i, l] for i in 1:J) >= 1)
-    # @constraint(model, [w in L+1:L+W], sum(X[i, w] for i in 1:J) >= 1)
-    @constraint(model, [i in 1:J], X[i, 2] - E[i] >= 0)
+    @constraint(model, [i in 1:J], sum(U[i, f] for f in 1:F) == 1)
+    @constraint(model, [i in 1:J], U[i, 2] - E[i] >= 0)
 
     @constraint(model, [i in 1:J, m in 2:M], C[i, m] >= C[i, m-1] + p[i, m])
     @constraint(model, [i in 1:J], C[i, 1] >= p[i, 1])
@@ -1212,33 +1321,20 @@ function LBBD_OASSR(filenm, TIME_LIMIT)
     M_4_5_6 = [4, 5, 6]
     M_no_3 = [1, 2, 4, 5, 6]
 
-    @variable(model, R1 >= 0)
-    @variable(model, R2 >= 0)
-    @variable(model, v[1:J], Bin)
-    @variable(model, w[1:J], Bin)
-    @constraint(model, sum(v[i] for i in 1:J) >= 1)
-    @constraint(model, [i in 1:J], v[i] <= X[i, 1])
-    @constraint(model, sum(w[i] for i in 1:J) >= 1)
-    @constraint(model, [i in 1:J], w[i] <= X[i, 1])
-    @constraint(model, [i in 1:J], R1 <= sum(p[i, m] for m in M_1_2) + H * (1 - X[i, 1]))
-    @constraint(model, [i in 1:J], R1 >= sum(p[i, m] for m in M_1_2) - H * (1 - v[i]) - H * (1 - X[i, 1]))
-    @constraint(model, [i in 1:J], R2 <= sum(p[i, m] for m in M_4_5_6) + H * (1 - X[i, 1]))
-    @constraint(model, [i in 1:J], R2 >= sum(p[i, m] for m in M_4_5_6) - H * (1 - w[i]) - H * (1 - X[i, 1]))
-    @constraint(model, Cmax >= sum(p[i, 3] * X[i, 1] for i in 1:J) + R1 + R2)
+    @variable(model, R1[1:F] >= 0)
+    @variable(model, R2[1:F] >= 0)
+    @variable(model, v[1:J, 1:F], Bin)
+    @variable(model, q[1:J, 1:F], Bin)
+    @constraint(model, [f in 1:F], sum(v[i, f] for i in 1:J) >= 1)
+    @constraint(model, [i in 1:J, f in 1:F], v[i, f] <= U[i, f])
+    @constraint(model, [f in 1:F], sum(q[i, f] for i in 1:J) >= 1)
+    @constraint(model, [i in 1:J, f in 1:F], q[i, f] <= U[i, f])
+    @constraint(model, [i in 1:J, f in 1:F], R1[f] <= sum(p[i, m] for m in M_1_2) + Ω * (1 - U[i, f]))
+    @constraint(model, [i in 1:J, f in 1:F], R1[f] >= sum(p[i, m] for m in M_1_2) - Ω * (1 - v[i, f]) - Ω * (1 - U[i, f]))
+    @constraint(model, [i in 1:J, f in 1:F], R2[f] <= sum(p[i, m] for m in M_4_5_6) + Ω * (1 - U[i, f]))
+    @constraint(model, [i in 1:J, f in 1:F], R2[f] >= sum(p[i, m] for m in M_4_5_6) - Ω * (1 - q[i, f]) - Ω * (1 - U[i, f]))
+    @constraint(model, [f in 1:F], Cmax >= sum(p[i, 3] * U[i, f] for i in 1:J) + R1[f] + R2[f])
 
-    @variable(model, T1 >= 0)
-    @variable(model, T2 >= 0)
-    @variable(model, vt[1:J], Bin)
-    @variable(model, wt[1:J], Bin)
-    @constraint(model, sum(vt[i] for i in 1:J) >= 1)
-    @constraint(model, [i in 1:J], vt[i] <= X[i, 2])
-    @constraint(model, sum(wt[i] for i in 1:J) >= 1)
-    @constraint(model, [i in 1:J], wt[i] <= X[i, 2])
-    @constraint(model, [i in 1:J], T1 <= sum(p[i, m] for m in M_1_2) + H * (1 - X[i, 2]))
-    @constraint(model, [i in 1:J], T1 >= sum(p[i, m] for m in M_1_2) - H * (1 - vt[i]) - H * (1 - X[i, 2]))
-    @constraint(model, [i in 1:J], T2 <= sum(p[i, m] for m in M_4_5_6) + H * (1 - X[i, 2]))
-    @constraint(model, [i in 1:J], T2 >= sum(p[i, m] for m in M_4_5_6) - H * (1 - wt[i]) - H * (1 - X[i, 2]))
-    @constraint(model, Cmax >= sum(p[i, 3] * X[i, 2] for i in 1:J) + T1 + T2)
     @constraint(model, [i in 1:J], Cmax >= C[i, 6])
 
 
@@ -1256,11 +1352,11 @@ function LBBD_OASSR(filenm, TIME_LIMIT)
         JuMP.set_time_limit_sec(model, 60)
         JuMP.optimize!(model)
         timeMasterProblem = JuMP.solve_time(model) + timeMasterProblem
-        X1 = JuMP.value.(X)
+        U1 = JuMP.value.(U)
         lower_bound = JuMP.objective_bound(model)
 
         # Step 2: Solve the subproblem
-        upper_bound, subSolTime, subLineSolTime, subTableSolTime, subObjBound = subproblem_solve_Unit(filenm, 30, X1)
+        upper_bound, subSolTime, subLineSolTime, subTableSolTime, subObjBound = subproblem_solve_Unit(filenm, 30, U1)
         timeSubProblem = subSolTime + timeSubProblem
         timeSubLine = subLineSolTime + timeSubLine
         timeSubTable = subTableSolTime + timeSubTable
@@ -1278,7 +1374,7 @@ function LBBD_OASSR(filenm, TIME_LIMIT)
         end
 
         # Step 4: Add the Benders cut
-        cut = @constraint(model, Cmax >= subObjBound * (1 - sum(X[i, f] * (1 - X1[i, f]) for i in 1:J for f in 1:F)))
+        cut = @constraint(model, Cmax >= subObjBound * (1 - sum(U[i, f] * (1 - U1[i, f]) for i in 1:J for f in 1:F)))
         push!(cuts, cut)
 
         if timeMasterProblem + timeSubProblem >= TIME_LIMIT
@@ -1323,6 +1419,6 @@ function Data_Generation(JOB, MACHINE, LINE_NUM, TABLE_NUM, PROCESSING_TIME_4, i
     end
 
     println("p = $p")
-    filenm = join(["Data/SJSmall/Ins_", string(JOB), "_", string(MACHINE), "_", string(LINE_NUM), "_", string(TABLE_NUM), "_", string(index), "_", string(SPECIAL_JOB_NUM), ".jld"])
+    filenm = join(["Ins_", string(JOB), "_", string(MACHINE), "_", string(LINE_NUM), "_", string(TABLE_NUM), "_", string(index), "_", string(SPECIAL_JOB_NUM), ".jld"])
     save(filenm, "JJ", JOB, "MM", MACHINE, "LL", LINE_NUM, "TT", TABLE_NUM, "pp", p, "SS", SPECIAL_JOB)
 end
