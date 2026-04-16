@@ -64,8 +64,8 @@ function MILP(filenm, timeout)
     @constraint(model, [i in 1:J-1, j in i+1:J, w in 1:W], C[i, 1] >= C[j, 6] + p[i, 1] - (3 - Y[i, j] - Z[i, w] - Z[j, w]) * Ω)
     @constraint(model, [i in 1:J-1, j in i+1:J, w in 1:W], C[j, 1] >= C[i, 6] + p[j, 1] - (2 + Y[i, j] - Z[i, w] - Z[j, w]) * Ω)
     ## Shared resource constraint for the third operation SingleServer
-    @constraint(model, [i in 1:J-1, j in i+1:J, w1 in 1:W, w2 in L+1:L+W], C[i, 3] >= C[j, 3] + p[i, 3] - (3 - Y[i, j] - Z[i, w1] - Z[j, w2]) * Ω) # 
-    @constraint(model, [i in 1:J-1, j in i+1:J, w1 in 1:W, w2 in L+1:L+W], C[j, 3] >= C[i, 3] + p[j, 3] - (2 + Y[i, j] - Z[i, w1] - Z[j, w2]) * Ω) # 
+    @constraint(model, [i in 1:J-1, j in i+1:J, w1 in 1:W, w2 in 1:W], C[i, 3] >= C[j, 3] + p[i, 3] - (3 - Y[i, j] - Z[i, w1] - Z[j, w2]) * Ω) # 
+    @constraint(model, [i in 1:J-1, j in i+1:J, w1 in 1:W, w2 in 1:W], C[j, 3] >= C[i, 3] + p[j, 3] - (2 + Y[i, j] - Z[i, w1] - Z[j, w2]) * Ω) # 
 
     ## Completion time constraint
     @constraint(model, [i in 1:J], Cmax >= C[i, M])
