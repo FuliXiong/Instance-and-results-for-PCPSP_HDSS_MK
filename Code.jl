@@ -1071,18 +1071,10 @@ function LBBD_GBWR(filenm, TIME_LIMIT)
     @constraint(model, [i in 1:J], C[i, 1] >= p[i, 1])
 
 
-    @variable(model, O1 >= 0)
-    @variable(model, O2 >= 0)
-    @variable(model, a[1:J], Bin)
-    @variable(model, b[1:J], Bin)
-
-    @constraint(model, sum(a[i] for i in 1:J) >= 1)
-    @constraint(model, [i in 1:J], O1 <= sum(p[i, m] for m in M_1_2))
-    @constraint(model, [i in 1:J], O1 >= sum(p[i, m] for m in M_1_2) - H * (1 - a[i]))
-
-    @constraint(model, sum(b[i] for i in 1:J) >= 1)
-    @constraint(model, [i in 1:J], R2 <= sum(p[i, m] for m in M_4_5_6))
-    @constraint(model, [i in 1:J], R2 >= sum(p[i, m] for m in M_4_5_6) - H * (1 - b[i]))
+    M_1_2 = [1, 2]
+    M_4_5_6 = [4, 5, 6]
+    O1 = minimum(sum(p[i, m] for m in M_1_2) for i in 1:J)
+    O2 = minimum(sum(p[i, m] for m in M_4_5_6) for i in 1:J)
 
     @constraint(model, Cmax >= sum(p[i, 3] for i in 1:J) / F + O1 + O2)
 
@@ -1192,7 +1184,6 @@ function LBBD_ADBWR(filenm, TIME_LIMIT)
 
     M_1_2 = [1, 2]
     M_4_5_6 = [4, 5, 6]
-    M_no_3 = [1, 2, 4, 5, 6]
 
     @variable(model, R1[1:F] >= 0)
     @variable(model, R2[1:F] >= 0)
@@ -1319,7 +1310,6 @@ function LBBD_LBWR(filenm, TIME_LIMIT)
 
     M_1_2 = [1, 2]
     M_4_5_6 = [4, 5, 6]
-    M_no_3 = [1, 2, 4, 5, 6]
 
     @variable(model, R1[1:F] >= 0)
     @variable(model, R2[1:F] >= 0)
